@@ -84,6 +84,9 @@ export default function HomePage() {
     const onState = (roomState: RoomState) => {
       // setRoom automatically derives currentUser from room.users
       setRoom(roomState)
+      if ('password' in roomState) {
+        useRoomStore.getState().setRoomPassword(roomState.password ?? null)
+      }
       setActionLoading(false)
       setPasswordDialog({ open: false, room: null })
       setPasswordError(null)

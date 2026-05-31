@@ -180,7 +180,12 @@ async function _playTrackInRoom(io: TypedServer, roomId: string, track: Track): 
               const best = await trackFallbackService.findBestAlternativeTrack(resolved, toSource)
               if (best) {
                 const cookie2 = authService.getAnyCookie(best.track.source, roomId)
-                const url2 = await resolveStreamUrl(best.track.source, best.track.urlId, room.audioQuality, cookie2 ?? undefined)
+                const url2 = await resolveStreamUrl(
+                  best.track.source,
+                  best.track.urlId,
+                  room.audioQuality,
+                  cookie2 ?? undefined,
+                )
                 if (url2) {
                   const replacement: Track = {
                     ...best.track,
@@ -519,7 +524,7 @@ export function cleanupRoom(roomId: string): void {
 /**
  * Validate a conductor sync report against the server estimate.
  * Returns true if the report should be ACCEPTED, false if rejected (stale).
- * Automatically force-accepts after CONDUCTOR_REJECT_FORCE_ACCEPT consecutive
+ * Automatically force-accepts after CONDUCTOR_REJECT_FORCE_ACCEPT_COUNT consecutive
  * rejections to break deadlocks when the server estimate has diverged.
  */
 export function validateConductorReport(roomId: string, reportedTime: number, estimatedTime: number): boolean {

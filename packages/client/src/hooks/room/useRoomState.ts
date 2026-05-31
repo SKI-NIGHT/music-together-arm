@@ -37,8 +37,10 @@ export function useRoomState() {
     const onRoomState = (roomState: RoomState) => {
       // setRoom automatically derives currentUser from room.users
       useRoomStore.getState().setRoom(roomState)
-      // 初始化密码（ROOM_STATE 携带密码明文）
-      useRoomStore.getState().setRoomPassword(roomState.password ?? null)
+      // 仅 owner 专用 ROOM_STATE 携带密码明文；公开 ROOM_STATE 不应清空本地密码缓存。
+      if ('password' in roomState) {
+        useRoomStore.getState().setRoomPassword(roomState.password ?? null)
+      }
 
       // Auto-resend persisted auth cookies so the room's cookie pool is populated
       resendCookies()
@@ -114,8 +116,11 @@ export function useRoomState() {
         NO_RESOURCE: '无资源',
         TIMEOUT: '超时',
       }
-      const reasonText = data.reasonType ? reasonMap[data.reasonType] ?? null : null
-      toast.error(reasonText ? `自动换源失败：${data.trackTitle}（${reasonText}）` : `自动换源失败：${data.trackTitle}`, { id })
+      const reasonText = data.reasonType ? (reasonMap[data.reasonType] ?? null) : null
+      toast.error(
+        reasonText ? `自动换源失败：${data.trackTitle}（${reasonText}）` : `自动换源失败：${data.trackTitle}`,
+        { id },
+      )
     }
 
     const onError = (error: { code: string; message: string }) => {

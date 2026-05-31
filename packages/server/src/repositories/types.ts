@@ -1,6 +1,6 @@
 import type { AudioQuality, ChatMessage, PlayMode, PlayState, RoomListItem, Track, User } from '@music-together/shared'
 
-/** 服务端内部房间数据模型 -- 含密码（永远不发送给客户端） */
+/** 服务端内部房间数据模型 -- 含密码（仅通过 owner 专用 RoomState 发送给客户端） */
 export interface RoomData {
   id: string
   name: string
@@ -10,6 +10,8 @@ export interface RoomData {
   hostId: string
   /** 持久化 admin 用户 ID 集合（离开/回来自动恢复 admin） */
   adminUserIds: Set<string>
+  /** 临时管理员 ID：仅当房间内没有在线 owner / 持久 admin 时授予，不持久化 */
+  temporaryAdminUserId: string | null
   audioQuality: AudioQuality
   users: User[]
   queue: Track[]

@@ -103,7 +103,7 @@ src/
 │   ├── usePlayer.ts            #   播放器主 hook（组合 useHowl + useLyric + usePlayerSync）
 │   ├── useHowl.ts              #   Howler.js 音频实例管理
 │   ├── useLyric.ts             #   歌词加载（TTML → 平台逐词 YRC/KRC → LRC）
-│   ├── usePlayerSync.ts        #   播放同步（Scheduled Execution + Host 上报 + 周期性漂移校正）
+│   ├── usePlayerSync.ts        #   播放同步（Scheduled Execution + conductor 上报 + 周期性漂移校正）
 │   ├── useClockSync.ts         #   NTP 时钟同步 hook（校准客户端时钟与服务器对齐）
 │   ├── useRoom.ts              #   房间组合 hook（编排 5 个子 hook，对外 API 不变）
 │   ├── room/                   #   useRoom 子 hook（按职责拆分）

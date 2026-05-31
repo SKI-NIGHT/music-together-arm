@@ -110,7 +110,7 @@ export function registerRoomController(io: TypedServer, socket: TypedSocket) {
         return
       }
 
-      const { room: updatedRoom, user, hostChanged } = result
+      const { room: updatedRoom, user, hostChanged, roleChanged } = result
       const rejoin = issueRejoinTicket(roomId, user.id)
 
       socket.leave('lobby')
@@ -124,8 +124,9 @@ export function registerRoomController(io: TypedServer, socket: TypedSocket) {
         : roomService.toPublicRoomState(updatedRoom)
       socket.emit(EVENTS.ROOM_STATE, stateForJoiner)
 
-      // If conductor changed (owner joined, etc.), broadcast to ALL OTHER clients.
-      if (hostChanged) {
+      // If conductor or roles changed (owner/admin returned, temporary admin cleared),
+      // broadcast to ALL OTHER clients so permissions stay in sync.
+      if (hostChanged || roleChanged) {
         socket.to(roomId).emit(EVENTS.ROOM_STATE, roomService.toPublicRoomState(updatedRoom))
       }
       socket.emit(EVENTS.ROOM_REJOIN_TOKEN, { roomId, token: rejoin.token, expiresAt: rejoin.expiresAt })
@@ -225,13 +226,19 @@ export function registerRoomController(io: TypedServer, socket: TypedSocket) {
       }
 
       const { userId, role } = parsed.data
-      const success = roomService.setUserRole(ctx.roomId, userId, role)
-      if (!success) {
+      const result = roomService.setUserRole(ctx.roomId, userId, role)
+      if (!result.success) {
         ctx.socket.emit(EVENTS.ROOM_ERROR, { code: ERROR_CODE.SET_ROLE_FAILED, message: '无法设置该用户的角色' })
         return
       }
 
       io.to(ctx.roomId).emit(EVENTS.ROOM_ROLE_CHANGED, { userId, role })
+      if (result.hostChanged || result.roleChanged) {
+        // Owner must keep receiving the password-bearing state; other members
+        // (including temporary admins) only receive the public state.
+        ctx.socket.emit(EVENTS.ROOM_STATE, roomService.toPublicRoomStateForOwner(ctx.room))
+        ctx.socket.to(ctx.roomId).emit(EVENTS.ROOM_STATE, roomService.toPublicRoomState(ctx.room))
+      }
       logger.info(`Role changed: ${userId} -> ${role} in room ${ctx.roomId}`, { roomId: ctx.roomId })
     }),
   )
@@ -264,12 +271,17 @@ function handleLeave(io: TypedServer, socket: TypedSocket, reason?: string, revo
   const result = roomService.leaveRoom(socket.id, io)
   if (!result) return
 
-  const { roomId, user, room, hostChanged, voteUpdated } = result
+  const { roomId, user, room, hostChanged, roleChanged, voteUpdated, staleSocketOnly } = result
   if (revokeTicket) {
     revokeRejoinTickets(roomId, user.id)
   }
   socket.leave(roomId)
   socket.join('lobby')
+
+  // Stale socket cleanup (e.g. page refresh) should only remove this socket
+  // from the Socket.IO room; the user remains present via another socket.
+  if (staleSocketOnly) return
+
   io.to(roomId).emit(EVENTS.ROOM_USER_LEFT, user)
 
   // System message for user left (server-authoritative)
@@ -278,9 +290,9 @@ function handleLeave(io: TypedServer, socket: TypedSocket, reason?: string, revo
     io.to(roomId).emit(EVENTS.CHAT_MESSAGE, leaveMsg)
   }
 
-  // 房主变更时广播完整状态，确保所有客户端更新 hostId
-  // 新 owner 收到含密码版本，其他成员不含密码
-  if (hostChanged && room && room.users.length > 0) {
+  // 角色或主持变更时广播完整状态，确保所有客户端更新 hostId / 权限
+  // owner 收到含密码版本，其他成员不含密码
+  if ((hostChanged || roleChanged) && room && room.users.length > 0) {
     const newOwner = room.users.find((u) => u.role === 'owner')
     const ownerSocketId = newOwner ? roomRepo.getSocketIdForUser(roomId, newOwner.id) : null
     if (ownerSocketId) {
